@@ -3,8 +3,8 @@ name: godot windows build d3d12 cs
 on  :
   workflow_dispatch
 
-env :
-  GODOT_VERSION_STATUS: d3d12-custom-build-01
+# env :
+#   GODOT_VERSION_STATUS: d3d12-custom-build-01
 
 jobs:
   godot-windows-build-d3d12-cs:
