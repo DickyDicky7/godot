@@ -1,19 +1,18 @@
-name: Godot Windows Build With D3D12
+name: godot windows build d3d12 gd
 
-on:
-  workflow_dispatch
+on  : workflow_dispatch
 
 jobs:
-  godot-windows-build-d3d12:
+  godot-windows-build-d3d12-gd:
     runs-on: windows-latest
-    name: Godot Windows Build With D3D12
+    name   : godot windows build d3d12 gd
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v4.1.1
-      - name: Install Scoop
+      - name: install scoop
         uses: MinoruSekine/setup-scoop@v3
-      - name: Install Build Tools
-        run: |
+      - name: install build tools & setup environment
+        run : |
           scoop install gcc python scons make mingw
           7z x   dxc_2024_03_07.zip -od:\a\godot\godot\dxc       -r
           7z x godot-nir-23.1.9.zip -od:\a\godot\godot\godot-nir -r
@@ -25,10 +24,10 @@ jobs:
           gendef ./bin/x64/WinPixEventRuntime.dll
           dlltool --machine i386:x86-64 --no-leading-underscore -d WinPixEventRuntime.def -D WinPixEventRuntime.dll -l ./bin/x64/libWinPixEventRuntime.a
           cd ..
-      - name: Running SCons And Build
-        run: |
+      - name: run scons to build
+        run : |
           scons platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix'
-      - name: Upload Build 
+      - name: upload build result 
         uses: actions/upload-artifact@v4.3.1
         with:
           path: ./bin
