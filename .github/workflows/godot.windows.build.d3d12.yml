@@ -15,19 +15,19 @@ jobs:
       - name: Install Build Tools
         run: |
           scoop install gcc python scons make mingw
-          7z x dxc_2024_03_07.zip -odxc -r
-          7z x godot-nir-23.1.9.zip -ogodot-nir -r
+          7z x   dxc_2024_03_07.zip -od:\a\godot\godot\dxc       -r
+          7z x godot-nir-23.1.9.zip -od:\a\godot\godot\godot-nir -r
           ren "winpixeventruntime.1.0.231030001.nupkg" "winpixeventruntime.1.0.231030001.zip"
           ren "microsoft.direct3d.d3d12.1.613.0.nupkg" "microsoft.direct3d.d3d12.1.613.0.zip"
-          7z x winpixeventruntime.1.0.231030001.zip -opix -r
-          7z x microsoft.direct3d.d3d12.1.613.0.zip -osdk -r
+          7z x winpixeventruntime.1.0.231030001.zip -od:\a\godot\godot\pix -r
+          7z x microsoft.direct3d.d3d12.1.613.0.zip -od:\a\godot\godot\sdk -r
           cd pix
           gendef ./bin/x64/WinPixEventRuntime.dll
           dlltool --machine i386:x86-64 --no-leading-underscore -d WinPixEventRuntime.def -D WinPixEventRuntime.dll -l ./bin/x64/libWinPixEventRuntime.a
           cd ..
       - name: Running SCons And Build
         run: |
-          scons platform=windows production=yes use_mingw=yes d3d12=yes dxc_path=./dxc mesa_libs=./godot-nir agility_sdk_path=./sdk pix_path=./pix
+          scons platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix'
       - name: Upload Build 
         uses: actions/upload-artifact@v4.3.1
         with:
