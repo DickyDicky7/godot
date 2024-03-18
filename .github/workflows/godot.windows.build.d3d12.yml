@@ -17,8 +17,8 @@ jobs:
           scoop install gcc python scons make mingw
           7z x dxc_2024_03_07.zip -odxc -r
           7z x godot-nir-23.1.9.zip -ogodot-nir -r
-          rename "winpixeventruntime.1.0.231030001.nupkg" "winpixeventruntime.1.0.231030001.zip"
-          rename "microsoft.direct3d.d3d12.1.613.0.nupkg" "microsoft.direct3d.d3d12.1.613.0.zip"
+          ren "winpixeventruntime.1.0.231030001.nupkg" "winpixeventruntime.1.0.231030001.zip"
+          ren "microsoft.direct3d.d3d12.1.613.0.nupkg" "microsoft.direct3d.d3d12.1.613.0.zip"
           7z x winpixeventruntime.1.0.231030001.zip -opix -r
           7z x microsoft.direct3d.d3d12.1.613.0.zip -osdk -r
           cd pix
