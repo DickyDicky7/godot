@@ -4,7 +4,7 @@ on  :
   workflow_dispatch
 
 env :
-  GODOT_VERSION_STATUS: godot-v4.3-dev5-d3d12-limboai-v0.5
+  GODOT_VERSION_STATUS: v4.3-dev5-d3d12-limboai-v0.5
 
 jobs:
   godot-windows-build-d3d12-limboai-cs:
@@ -41,10 +41,10 @@ jobs:
       - name: bind cs dotnet
         run : |
           cd bin
-          dir -r
+          dir -s
           cd ..
-          .\bin/godot.windows.editor.double.x86_64.mono.exe --headless               --generate-mono-glue modules/mono/glue
-          ./modules/mono/build_scripts/build_assemblies.py  --godot-output-dir=./bin --precision=double
+          .\bin/godot-v4.3-dev5-d3d12-limboai-v0.5.windows.editor.double.x86_64.mono.exe --headless               --generate-mono-glue modules/mono/glue
+          ./modules/mono/build_scripts/build_assemblies.py                               --godot-output-dir=./bin --precision=double
       - name: upload build result 
         uses: actions/upload-artifact@v4.3.1
         with:
