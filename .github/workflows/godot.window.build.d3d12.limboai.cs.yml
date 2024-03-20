@@ -37,7 +37,7 @@ jobs:
           cd ..
       - name: run scons to build
         run : |
-          scons -i platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
+          scons -k platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
       - name: bind cs dotnet
         run : |
           cd bin
