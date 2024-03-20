@@ -22,9 +22,9 @@ jobs:
       - name: install build tools & setup environment
         run : |
           scoop install gcc python scons make mingw
-          7z x limboai-0.5.zip
-          ren "limboai-0.5" "limboai"
-          move              "limboai" "modules"
+          7z x limboai-master.zip
+          ren "limboai-master" "limboai"
+          move                 "limboai" "modules"
           7z x   dxc_2024_03_07.zip -od:\a\godot\godot\dxc       -r
           7z x godot-nir-23.1.9.zip -od:\a\godot\godot\godot-nir -r
           ren "winpixeventruntime.1.0.231030001.nupkg" "winpixeventruntime.1.0.231030001.zip"
@@ -37,7 +37,7 @@ jobs:
           cd ..
       - name: run scons to build
         run : |
-          scons platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
+          scons -i platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
       - name: bind cs dotnet
         run : |
           cd bin
