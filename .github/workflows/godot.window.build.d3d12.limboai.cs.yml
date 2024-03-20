@@ -37,11 +37,11 @@ jobs:
           cd ..
       - name: run scons to build
         run : |
-          scons -k platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
+          scons -j2 tests=no verbose=yes warnings=extra werror=yes platform=windows production=yes use_mingw=yes d3d12=yes dxc_path='d:\a\godot\godot\dxc' mesa_libs='d:\a\godot\godot\godot-nir' agility_sdk_path='d:\a\godot\godot\sdk' pix_path='d:\a\godot\godot\pix' module_mono_enabled=yes precision=double
       - name: bind cs dotnet
         run : |
           cd bin
-          dir -s
+          dir -r
           cd ..
           .\bin/godot-v4.3-dev5-d3d12-limboai-v0.5.windows.editor.double.x86_64.mono.exe --headless               --generate-mono-glue modules/mono/glue
           ./modules/mono/build_scripts/build_assemblies.py                               --godot-output-dir=./bin --precision=double
