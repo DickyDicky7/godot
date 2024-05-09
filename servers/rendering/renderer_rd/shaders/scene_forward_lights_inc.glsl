@@ -1017,3 +1017,243 @@ float sample_directional_shadow(uint idx, vec3 vertex) {
   return shadow;
 
 }
+
+void light_process_directional_shadow(uint idx, vec3 vertex, highp vec2 directional_shadow_pixel_size, inout uint shadow0, inout uint shadow1)
+{
+			if (i >= scene_data.directional_light_count) {
+				break;
+			}
+
+
+			if (!bool(directional_lights.data[i].mask & instances.data[instance_index].layer_mask)) {
+				continue; //not masked
+			}
+
+
+			if (directional_lights.data[i].bake_mode == LIGHT_BAKE_STATIC && bool(instances.data[instance_index].flags & INSTANCE_FLAGS_USE_LIGHTMAP)) {
+				continue; // Statically baked light and object uses lightmap, skip
+			}
+
+
+			float shadow = 1.0;
+
+
+			if (directional_lights.data[i].shadow_opacity > 0.001) {
+				float depth_z = -vertex.z;
+				vec3 light_dir = directional_lights.data[i].direction;
+				vec3 base_normal_bias = normalize(normal_interp) * (1.0 - max(0.0, dot(light_dir, -normalize(normal_interp))));
+
+
+#define BIAS_FUNC(m_var, m_idx)                                                                 \
+	m_var.xyz += light_dir * directional_lights.data[i].shadow_bias[m_idx];                     \
+	vec3 normal_bias = base_normal_bias * directional_lights.data[i].shadow_normal_bias[m_idx]; \
+	normal_bias -= light_dir * dot(light_dir, normal_bias);                                     \
+	m_var.xyz += normal_bias;
+
+
+				//version with soft shadows, more expensive
+				if (sc_use_directional_soft_shadows && directional_lights.data[i].softshadow_angle > 0) {
+					uint blend_count = 0;
+					const uint blend_max = directional_lights.data[i].blend_splits ? 2 : 1;
+
+
+					if (depth_z < directional_lights.data[i].shadow_split_offsets.x) {
+						vec4 v = vec4(vertex, 1.0);
+
+
+						BIAS_FUNC(v, 0)
+
+
+						vec4 pssm_coord = (directional_lights.data[i].shadow_matrix1 * v);
+						pssm_coord /= pssm_coord.w;
+
+
+						float range_pos = dot(directional_lights.data[i].direction, v.xyz);
+						float range_begin = directional_lights.data[i].shadow_range_begin.x;
+						float test_radius = (range_pos - range_begin) * directional_lights.data[i].softshadow_angle;
+						vec2 tex_scale = directional_lights.data[i].uv_scale1 * test_radius;
+						shadow = sample_directional_soft_shadow(directional_shadow_atlas, pssm_coord.xyz, tex_scale * directional_lights.data[i].soft_shadow_scale);
+						blend_count++;
+					}
+
+
+					if (blend_count < blend_max && depth_z < directional_lights.data[i].shadow_split_offsets.y) {
+						vec4 v = vec4(vertex, 1.0);
+
+
+						BIAS_FUNC(v, 1)
+
+
+						vec4 pssm_coord = (directional_lights.data[i].shadow_matrix2 * v);
+						pssm_coord /= pssm_coord.w;
+
+
+						float range_pos = dot(directional_lights.data[i].direction, v.xyz);
+						float range_begin = directional_lights.data[i].shadow_range_begin.y;
+						float test_radius = (range_pos - range_begin) * directional_lights.data[i].softshadow_angle;
+						vec2 tex_scale = directional_lights.data[i].uv_scale2 * test_radius;
+						float s = sample_directional_soft_shadow(directional_shadow_atlas, pssm_coord.xyz, tex_scale * directional_lights.data[i].soft_shadow_scale);
+
+
+						if (blend_count == 0) {
+							shadow = s;
+						} else {
+							//blend
+							float blend = smoothstep(0.0, directional_lights.data[i].shadow_split_offsets.x, depth_z);
+							shadow = mix(shadow, s, blend);
+						}
+
+
+						blend_count++;
+					}
+
+
+					if (blend_count < blend_max && depth_z < directional_lights.data[i].shadow_split_offsets.z) {
+						vec4 v = vec4(vertex, 1.0);
+
+
+						BIAS_FUNC(v, 2)
+
+
+						vec4 pssm_coord = (directional_lights.data[i].shadow_matrix3 * v);
+						pssm_coord /= pssm_coord.w;
+
+
+						float range_pos = dot(directional_lights.data[i].direction, v.xyz);
+						float range_begin = directional_lights.data[i].shadow_range_begin.z;
+						float test_radius = (range_pos - range_begin) * directional_lights.data[i].softshadow_angle;
+						vec2 tex_scale = directional_lights.data[i].uv_scale3 * test_radius;
+						float s = sample_directional_soft_shadow(directional_shadow_atlas, pssm_coord.xyz, tex_scale * directional_lights.data[i].soft_shadow_scale);
+
+
+						if (blend_count == 0) {
+							shadow = s;
+						} else {
+							//blend
+							float blend = smoothstep(directional_lights.data[i].shadow_split_offsets.x, directional_lights.data[i].shadow_split_offsets.y, depth_z);
+							shadow = mix(shadow, s, blend);
+						}
+
+
+						blend_count++;
+					}
+
+
+					if (blend_count < blend_max) {
+						vec4 v = vec4(vertex, 1.0);
+
+
+						BIAS_FUNC(v, 3)
+
+
+						vec4 pssm_coord = (directional_lights.data[i].shadow_matrix4 * v);
+						pssm_coord /= pssm_coord.w;
+
+
+						float range_pos = dot(directional_lights.data[i].direction, v.xyz);
+						float range_begin = directional_lights.data[i].shadow_range_begin.w;
+						float test_radius = (range_pos - range_begin) * directional_lights.data[i].softshadow_angle;
+						vec2 tex_scale = directional_lights.data[i].uv_scale4 * test_radius;
+						float s = sample_directional_soft_shadow(directional_shadow_atlas, pssm_coord.xyz, tex_scale * directional_lights.data[i].soft_shadow_scale);
+
+
+						if (blend_count == 0) {
+							shadow = s;
+						} else {
+							//blend
+							float blend = smoothstep(directional_lights.data[i].shadow_split_offsets.y, directional_lights.data[i].shadow_split_offsets.z, depth_z);
+							shadow = mix(shadow, s, blend);
+						}
+					}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+}
