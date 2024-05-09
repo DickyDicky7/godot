@@ -1077,7 +1077,7 @@ Ref<Image> TextureStorage::texture_2d_get(RID p_texture) const {
 		glDisable(GL_DEPTH_TEST);
 		glDisable(GL_CULL_FACE);
 		glDisable(GL_BLEND);
-		glDepthFunc(GL_LEQUAL);
+		glDepthFunc(GL_GEQUAL);
 		glColorMask(1, 1, 1, 1);
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, texture->tex_id);
@@ -2312,9 +2312,11 @@ void TextureStorage::_clear_render_target(RenderTarget *rt) {
 
 	if (rt->backbuffer_fbo != 0) {
 		glDeleteFramebuffers(1, &rt->backbuffer_fbo);
+		rt->backbuffer_fbo = 0;
+	}
+	if (rt->backbuffer != 0) {
 		GLES3::Utilities::get_singleton()->texture_free_data(rt->backbuffer);
 		rt->backbuffer = 0;
-		rt->backbuffer_fbo = 0;
 	}
 	if (rt->backbuffer_depth != 0) {
 		GLES3::Utilities::get_singleton()->texture_free_data(rt->backbuffer_depth);
@@ -2812,8 +2814,7 @@ void TextureStorage::_render_target_allocate_sdf(RenderTarget *rt) {
 	}
 
 	rt->process_size = size * scale / 100;
-	rt->process_size.x = MAX(rt->process_size.x, 1);
-	rt->process_size.y = MAX(rt->process_size.y, 1);
+	rt->process_size = rt->process_size.maxi(1);
 
 	glGenTextures(2, rt->sdf_texture_process);
 	glBindTexture(GL_TEXTURE_2D, rt->sdf_texture_process[0]);

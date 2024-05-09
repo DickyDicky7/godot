@@ -90,8 +90,8 @@ void ResourcePreloaderEditor::_load_pressed() {
 	file->clear_filters();
 	List<String> extensions;
 	ResourceLoader::get_recognized_extensions_for_type("", &extensions);
-	for (int i = 0; i < extensions.size(); i++) {
-		file->add_filter("*." + extensions[i]);
+	for (const String &extension : extensions) {
+		file->add_filter("*." + extension);
 	}
 
 	file->set_file_mode(EditorFileDialog::FILE_MODE_OPEN_FILES);
@@ -369,6 +369,7 @@ ResourcePreloaderEditor::ResourcePreloaderEditor() {
 
 	tree = memnew(Tree);
 	tree->connect("button_clicked", callable_mp(this, &ResourcePreloaderEditor::_cell_button_pressed));
+	tree->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	tree->set_columns(2);
 	tree->set_column_expand_ratio(0, 2);
 	tree->set_column_clip_content(0, true);

@@ -48,6 +48,7 @@
 #include "editor/property_selector.h"
 #include "editor/scene_tree_dock.h"
 #include "editor/themes/editor_scale.h"
+#include "editor/themes/editor_theme_manager.h"
 #include "scene/2d/gpu_particles_2d.h"
 #include "scene/3d/fog_volume.h"
 #include "scene/3d/gpu_particles_3d.h"
@@ -2024,6 +2025,7 @@ void EditorPropertyQuaternion::_custom_value_changed(double val) {
 	spin[1]->set_value_no_signal(temp_q.y);
 	spin[2]->set_value_no_signal(temp_q.z);
 	spin[3]->set_value_no_signal(temp_q.w);
+	_value_changed(-1, "");
 }
 
 void EditorPropertyQuaternion::_value_changed(double val, const String &p_name) {
@@ -2159,7 +2161,7 @@ EditorPropertyQuaternion::EditorPropertyQuaternion() {
 	warning_dialog->set_text(TTR("Temporary Euler will not be stored in the object with the original value. Instead, it will be stored as Quaternion with irreversible conversion.\nThis is due to the fact that the result of Euler->Quaternion can be determined uniquely, but the result of Quaternion->Euler can be multi-existent."));
 
 	euler_label = memnew(Label);
-	euler_label->set_text("Temporary Euler");
+	euler_label->set_text(TTR("Temporary Euler"));
 
 	edit_custom_bc->add_child(warning);
 	edit_custom_bc->add_child(edit_custom_layout);
@@ -2630,16 +2632,22 @@ void EditorPropertyColor::_set_read_only(bool p_read_only) {
 }
 
 void EditorPropertyColor::_color_changed(const Color &p_color) {
-	// Cancel the color change if the current color is identical to the new one.
-	if (get_edited_property_value() == p_color) {
+	if (!live_changes_enabled) {
 		return;
 	}
 
-	emit_changed(get_edited_property(), p_color, "", true);
+	// Cancel the color change if the current color is identical to the new one.
+	if (((Color)get_edited_property_value()).is_equal_approx(p_color)) {
+		return;
+	}
+
+	// Preview color change, bypassing undo/redo.
+	get_edited_object()->set(get_edited_property(), p_color);
 }
 
 void EditorPropertyColor::_popup_closed() {
-	if (picker->get_pick_color() != last_color) {
+	get_edited_object()->set(get_edited_property(), last_color);
+	if (!picker->get_pick_color().is_equal_approx(last_color)) {
 		emit_changed(get_edited_property(), picker->get_pick_color(), "", false);
 	}
 }
@@ -2680,6 +2688,10 @@ void EditorPropertyColor::update_property() {
 
 void EditorPropertyColor::setup(bool p_show_alpha) {
 	picker->set_edit_alpha(p_show_alpha);
+}
+
+void EditorPropertyColor::set_live_changes_enabled(bool p_enabled) {
+	live_changes_enabled = p_enabled;
 }
 
 EditorPropertyColor::EditorPropertyColor() {
@@ -2741,7 +2753,16 @@ void EditorPropertyNodePath::_node_assign() {
 		add_child(scene_tree);
 		scene_tree->connect("selected", callable_mp(this, &EditorPropertyNodePath::_node_selected));
 	}
-	scene_tree->popup_scenetree_dialog();
+
+	Variant val = get_edited_property_value();
+	Node *n = nullptr;
+	if (val.get_type() == Variant::Type::NODE_PATH) {
+		Node *base_node = get_base_node();
+		n = base_node == nullptr ? nullptr : base_node->get_node_or_null(val);
+	} else {
+		n = Object::cast_to<Node>(val);
+	}
+	scene_tree->popup_scenetree_dialog(n, get_base_node());
 }
 
 void EditorPropertyNodePath::_update_menu() {
@@ -3174,7 +3195,6 @@ void EditorPropertyResource::_resource_changed(const Ref<Resource> &p_resource) 
 			add_child(scene_tree);
 			scene_tree->connect("selected", callable_mp(this, &EditorPropertyResource::_viewport_selected));
 		}
-
 		scene_tree->popup_scenetree_dialog();
 	}
 }
@@ -3200,42 +3220,6 @@ void EditorPropertyResource::_open_editor_pressed() {
 		// May clear the editor so do it deferred.
 		callable_mp(EditorNode::get_singleton(), &EditorNode::edit_item).bind(res.ptr(), this).call_deferred();
 	}
-}
-
-void EditorPropertyResource::_update_property_bg() {
-	if (!is_inside_tree()) {
-		return;
-	}
-
-	updating_theme = true;
-
-	begin_bulk_theme_override();
-	if (sub_inspector != nullptr) {
-		int count_subinspectors = 0;
-		Node *n = get_parent();
-		while (n) {
-			EditorInspector *ei = Object::cast_to<EditorInspector>(n);
-			if (ei && ei->is_sub_inspector()) {
-				count_subinspectors++;
-			}
-			n = n->get_parent();
-		}
-		count_subinspectors = MIN(15, count_subinspectors);
-
-		add_theme_color_override("property_color", get_theme_color(SNAME("sub_inspector_property_color"), EditorStringName(Editor)));
-		add_theme_style_override("bg_selected", get_theme_stylebox("sub_inspector_property_bg" + itos(count_subinspectors), EditorStringName(Editor)));
-		add_theme_style_override("bg", get_theme_stylebox("sub_inspector_property_bg" + itos(count_subinspectors), EditorStringName(Editor)));
-		add_theme_constant_override("v_separation", 0);
-	} else {
-		add_theme_color_override("property_color", get_theme_color(SNAME("property_color"), SNAME("EditorProperty")));
-		add_theme_style_override("bg_selected", get_theme_stylebox(SNAME("bg_selected"), SNAME("EditorProperty")));
-		add_theme_style_override("bg", get_theme_stylebox(SNAME("bg"), SNAME("EditorProperty")));
-		add_theme_constant_override("v_separation", get_theme_constant(SNAME("v_separation"), SNAME("EditorProperty")));
-	}
-	end_bulk_theme_override();
-
-	updating_theme = false;
-	queue_redraw();
 }
 
 void EditorPropertyResource::_update_preferred_shader() {
@@ -3344,12 +3328,10 @@ void EditorPropertyResource::update_property() {
 				sub_inspector->set_read_only(is_read_only());
 				sub_inspector->set_use_folding(is_using_folding());
 
-				sub_inspector_vbox = memnew(VBoxContainer);
-				sub_inspector_vbox->set_mouse_filter(MOUSE_FILTER_STOP);
-				add_child(sub_inspector_vbox);
-				set_bottom_editor(sub_inspector_vbox);
+				sub_inspector->set_mouse_filter(MOUSE_FILTER_STOP);
+				add_child(sub_inspector);
+				set_bottom_editor(sub_inspector);
 
-				sub_inspector_vbox->add_child(sub_inspector);
 				resource_picker->set_toggle_pressed(true);
 
 				Array editor_list;
@@ -3365,20 +3347,18 @@ void EditorPropertyResource::update_property() {
 					_open_editor_pressed();
 					opened_editor = true;
 				}
-
-				_update_property_bg();
 			}
 
 			if (res.ptr() != sub_inspector->get_edited_object()) {
 				sub_inspector->edit(res.ptr());
+				_update_property_bg();
 			}
 
 		} else {
 			if (sub_inspector) {
 				set_bottom_editor(nullptr);
-				memdelete(sub_inspector_vbox);
+				memdelete(sub_inspector);
 				sub_inspector = nullptr;
-				sub_inspector_vbox = nullptr;
 
 				if (opened_editor) {
 					EditorNode::get_singleton()->hide_unused_editors();
@@ -3390,7 +3370,7 @@ void EditorPropertyResource::update_property() {
 		}
 	}
 
-	resource_picker->set_edited_resource(res);
+	resource_picker->set_edited_resource_no_check(res);
 }
 
 void EditorPropertyResource::collapse_all_folding() {
@@ -3424,10 +3404,26 @@ void EditorPropertyResource::fold_resource() {
 	}
 }
 
+bool EditorPropertyResource::is_colored(ColorationMode p_mode) {
+	switch (p_mode) {
+		case COLORATION_CONTAINER_RESOURCE:
+			return sub_inspector != nullptr;
+		case COLORATION_RESOURCE:
+			return true;
+		case COLORATION_EXTERNAL:
+			if (sub_inspector) {
+				Resource *edited_resource = Object::cast_to<Resource>(sub_inspector->get_edited_object());
+				return edited_resource && !edited_resource->is_built_in();
+			}
+			break;
+	}
+	return false;
+}
+
 void EditorPropertyResource::_notification(int p_what) {
 	switch (p_what) {
 		case NOTIFICATION_THEME_CHANGED: {
-			if (!updating_theme) {
+			if (EditorThemeManager::is_generated_theme_outdated()) {
 				_update_property_bg();
 			}
 		} break;
@@ -3914,6 +3910,11 @@ EditorProperty *EditorInspectorDefaultPlugin::get_editor_for_property(Object *p_
 		case Variant::PACKED_COLOR_ARRAY: {
 			EditorPropertyArray *editor = memnew(EditorPropertyArray);
 			editor->setup(Variant::PACKED_COLOR_ARRAY, p_hint_text);
+			return editor;
+		} break;
+		case Variant::PACKED_VECTOR4_ARRAY: {
+			EditorPropertyArray *editor = memnew(EditorPropertyArray);
+			editor->setup(Variant::PACKED_VECTOR4_ARRAY, p_hint_text);
 			return editor;
 		} break;
 		default: {

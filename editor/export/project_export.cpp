@@ -270,8 +270,8 @@ void ProjectExportDialog::_edit_preset(int p_index) {
 
 	List<String> extension_list = current->get_platform()->get_binary_extensions(current);
 	Vector<String> extension_vector;
-	for (int i = 0; i < extension_list.size(); i++) {
-		extension_vector.push_back("*." + extension_list[i]);
+	for (const String &extension : extension_list) {
+		extension_vector.push_back("*." + extension);
 	}
 
 	export_path->setup(extension_vector, false, true);
@@ -418,6 +418,12 @@ void ProjectExportDialog::_update_feature_list() {
 	for (const String &E : features_list) {
 		feature_set.insert(E);
 	}
+
+#ifdef REAL_T_IS_DOUBLE
+	feature_set.insert("double");
+#else
+	feature_set.insert("single");
+#endif // REAL_T_IS_DOUBLE
 
 	custom_feature_display->clear();
 	String text;
@@ -1035,10 +1041,13 @@ void ProjectExportDialog::_export_pck_zip_selected(const String &p_path) {
 	Ref<EditorExportPlatform> platform = current->get_platform();
 	ERR_FAIL_COND(platform.is_null());
 
+	const Dictionary &fd_option = export_pck_zip->get_selected_options();
+	bool export_debug = fd_option.get(TTR("Export With Debug"), true);
+
 	if (p_path.ends_with(".zip")) {
-		platform->export_zip(current, export_pck_zip_debug->is_pressed(), p_path);
+		platform->export_zip(current, export_debug, p_path);
 	} else if (p_path.ends_with(".pck")) {
-		platform->export_pack(current, export_pck_zip_debug->is_pressed(), p_path);
+		platform->export_pack(current, export_debug, p_path);
 	} else {
 		ERR_FAIL_MSG("Path must end with .pck or .zip");
 	}
@@ -1080,16 +1089,16 @@ void ProjectExportDialog::_export_project() {
 	export_project->clear_filters();
 
 	List<String> extension_list = platform->get_binary_extensions(current);
-	for (int i = 0; i < extension_list.size(); i++) {
+	for (const String &extension : extension_list) {
 		// TRANSLATORS: This is the name of a project export file format. %s will be replaced by the platform name.
-		export_project->add_filter("*." + extension_list[i], vformat(TTR("%s Export"), platform->get_name()));
+		export_project->add_filter("*." + extension, vformat(TTR("%s Export"), platform->get_name()));
 	}
 
 	if (!current->get_export_path().is_empty()) {
 		export_project->set_current_path(current->get_export_path());
 	} else {
 		if (extension_list.size() >= 1) {
-			export_project->set_current_file(default_filename + "." + extension_list[0]);
+			export_project->set_current_file(default_filename + "." + extension_list.front()->get());
 		} else {
 			export_project->set_current_file(default_filename);
 		}
@@ -1123,7 +1132,10 @@ void ProjectExportDialog::_export_project_to_path(const String &p_path) {
 
 	platform->clear_messages();
 	current->update_value_overrides();
-	Error err = platform->export_project(current, export_debug->is_pressed(), current->get_export_path(), 0);
+	Dictionary fd_option = export_project->get_selected_options();
+	bool export_debug = fd_option.get(TTR("Export With Debug"), true);
+
+	Error err = platform->export_project(current, export_debug, current->get_export_path(), 0);
 	result_dialog_log->clear();
 	if (err != ERR_SKIP) {
 		if (platform->fill_log_messages(result_dialog_log, err)) {
@@ -1321,6 +1333,7 @@ ProjectExportDialog::ProjectExportDialog() {
 
 	include_files = memnew(Tree);
 	include_margin->add_child(include_files);
+	include_files->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	include_files->connect("item_edited", callable_mp(this, &ProjectExportDialog::_tree_changed));
 	include_files->connect("check_propagated_to_item", callable_mp(this, &ProjectExportDialog::_check_propagated_to_item));
 	include_files->connect("custom_popup_edited", callable_mp(this, &ProjectExportDialog::_tree_popup_edited));
@@ -1551,17 +1564,8 @@ ProjectExportDialog::ProjectExportDialog() {
 	export_project->connect("file_selected", callable_mp(this, &ProjectExportDialog::_export_project_to_path));
 	export_project->get_line_edit()->connect("text_changed", callable_mp(this, &ProjectExportDialog::_validate_export_path));
 
-	export_debug = memnew(CheckBox);
-	export_debug->set_text(TTR("Export With Debug"));
-	export_debug->set_pressed(true);
-	export_debug->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
-	export_project->get_vbox()->add_child(export_debug);
-
-	export_pck_zip_debug = memnew(CheckBox);
-	export_pck_zip_debug->set_text(TTR("Export With Debug"));
-	export_pck_zip_debug->set_pressed(true);
-	export_pck_zip_debug->set_h_size_flags(Control::SIZE_SHRINK_CENTER);
-	export_pck_zip->get_vbox()->add_child(export_pck_zip_debug);
+	export_project->add_option(TTR("Export With Debug"), Vector<String>(), true);
+	export_pck_zip->add_option(TTR("Export With Debug"), Vector<String>(), true);
 
 	set_hide_on_ok(false);
 

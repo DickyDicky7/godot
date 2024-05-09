@@ -285,7 +285,7 @@ void InputEventConfigurationDialog::_update_input_list() {
 		for (int i = 0; i < keycode_get_count(); i++) {
 			String name = keycode_get_name_by_index(i);
 
-			if (!search_term.is_empty() && name.findn(search_term) == -1) {
+			if (!search_term.is_empty() && !name.containsn(search_term)) {
 				continue;
 			}
 
@@ -309,7 +309,7 @@ void InputEventConfigurationDialog::_update_input_list() {
 			mb->set_button_index(mouse_buttons[i]);
 			String desc = EventListenerLineEdit::get_event_text(mb, false);
 
-			if (!search_term.is_empty() && desc.findn(search_term) == -1) {
+			if (!search_term.is_empty() && !desc.containsn(search_term)) {
 				continue;
 			}
 
@@ -332,7 +332,7 @@ void InputEventConfigurationDialog::_update_input_list() {
 			joyb->set_button_index((JoyButton)i);
 			String desc = EventListenerLineEdit::get_event_text(joyb, false);
 
-			if (!search_term.is_empty() && desc.findn(search_term) == -1) {
+			if (!search_term.is_empty() && !desc.containsn(search_term)) {
 				continue;
 			}
 
@@ -358,7 +358,7 @@ void InputEventConfigurationDialog::_update_input_list() {
 			joym->set_axis_value(direction);
 			String desc = EventListenerLineEdit::get_event_text(joym, false);
 
-			if (!search_term.is_empty() && desc.findn(search_term) == -1) {
+			if (!search_term.is_empty() && !desc.containsn(search_term)) {
 				continue;
 			}
 
@@ -587,7 +587,7 @@ void InputEventConfigurationDialog::_notification(int p_what) {
 
 void InputEventConfigurationDialog::popup_and_configure(const Ref<InputEvent> &p_event, const String &p_current_action_name) {
 	if (p_event.is_valid()) {
-		_set_event(p_event->duplicate(), p_event);
+		_set_event(p_event->duplicate(), p_event->duplicate());
 	} else {
 		// Clear Event
 		_set_event(Ref<InputEvent>(), Ref<InputEvent>());
@@ -668,6 +668,7 @@ InputEventConfigurationDialog::InputEventConfigurationDialog() {
 	manual_vbox->add_child(input_list_search);
 
 	input_list_tree = memnew(Tree);
+	input_list_tree->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	input_list_tree->set_custom_minimum_size(Size2(0, 100 * EDSCALE)); // Min height for tree
 	input_list_tree->connect("item_selected", callable_mp(this, &InputEventConfigurationDialog::_input_list_item_selected));
 	input_list_tree->set_v_size_flags(Control::SIZE_EXPAND_FILL);

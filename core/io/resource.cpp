@@ -214,6 +214,7 @@ Error Resource::copy_from(const Ref<Resource> &p_resource) {
 	}
 	return OK;
 }
+
 void Resource::reload_from_file() {
 	String path = get_path();
 	if (!path.is_resource_file()) {
@@ -382,7 +383,8 @@ Ref<Resource> Resource::duplicate(bool p_subresources) const {
 			case Variant::Type::PACKED_FLOAT64_ARRAY:
 			case Variant::Type::PACKED_STRING_ARRAY:
 			case Variant::Type::PACKED_VECTOR2_ARRAY:
-			case Variant::Type::PACKED_VECTOR3_ARRAY: {
+			case Variant::Type::PACKED_VECTOR3_ARRAY:
+			case Variant::Type::PACKED_VECTOR4_ARRAY: {
 				r->set(E.name, p.duplicate(p_subresources));
 			} break;
 
@@ -423,8 +425,7 @@ RID Resource::get_rid() const {
 		}
 	}
 	if (_get_extension() && _get_extension()->get_rid) {
-		RID ret;
-		ret.from_uint64(_get_extension()->get_rid(_get_extension_instance()));
+		RID ret = RID::from_uint64(_get_extension()->get_rid(_get_extension_instance()));
 		if (ret.is_valid()) {
 			return ret;
 		}

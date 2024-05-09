@@ -213,7 +213,7 @@ void InspectorDock::_menu_option_confirm(int p_option, bool p_confirmed) {
 				current->get_method_list(&methods);
 
 				ERR_FAIL_INDEX(idx, methods.size());
-				String name = methods[idx].name;
+				String name = methods.get(idx).name;
 
 				current->call(name);
 			}
@@ -232,8 +232,8 @@ void InspectorDock::_load_resource(const String &p_type) {
 	ResourceLoader::get_recognized_extensions_for_type(p_type, &extensions);
 
 	load_resource_dialog->clear_filters();
-	for (int i = 0; i < extensions.size(); i++) {
-		load_resource_dialog->add_filter("*." + extensions[i], extensions[i].to_upper());
+	for (const String &extension : extensions) {
+		load_resource_dialog->add_filter("*." + extension, extension.to_upper());
 	}
 
 	const Vector<String> textfile_ext = ((String)(EDITOR_GET("docks/filesystem/textfile_extensions"))).split(",", false);
@@ -702,6 +702,7 @@ InspectorDock::InspectorDock(EditorData &p_editor_data) {
 	forward_button->connect("pressed", callable_mp(this, &InspectorDock::_edit_forward));
 
 	history_menu = memnew(MenuButton);
+	history_menu->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	history_menu->set_flat(false);
 	history_menu->set_theme_type_variation("FlatMenuButton");
 	history_menu->set_tooltip_text(TTR("History of recently edited objects."));
@@ -762,6 +763,7 @@ InspectorDock::InspectorDock(EditorData &p_editor_data) {
 	container->add_child(unique_resources_label);
 
 	unique_resources_list_tree = memnew(Tree);
+	unique_resources_list_tree->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	unique_resources_list_tree->set_hide_root(true);
 	unique_resources_list_tree->set_columns(1);
 	unique_resources_list_tree->set_column_title(0, TTR("Property"));

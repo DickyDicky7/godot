@@ -73,6 +73,8 @@ void AnimationPlayerEditor::_node_removed(Node *p_node) {
 		_update_player();
 
 		_ensure_dummy_player();
+
+		pin->set_pressed(false);
 	}
 }
 
@@ -546,8 +548,13 @@ void AnimationPlayerEditor::_animation_name_edited() {
 		} break;
 
 		case TOOL_NEW_ANIM: {
+			String current = animation->get_item_text(animation->get_selected());
+			Ref<Animation> current_anim = player->get_animation(current);
 			Ref<Animation> new_anim = Ref<Animation>(memnew(Animation));
 			new_anim->set_name(new_name);
+			if (current_anim.is_valid()) {
+				new_anim->set_step(current_anim->get_step());
+			}
 			String library_name;
 			Ref<AnimationLibrary> al;
 			library_name = library->get_item_metadata(library->get_selected());
@@ -1018,8 +1025,7 @@ void AnimationPlayerEditor::_update_name_dialog_library_dropdown() {
 	}
 
 	int current_lib_id = index_offset; // Don't default to [Global] if it doesn't exist yet.
-	for (int i = 0; i < libraries.size(); i++) {
-		StringName library_name = libraries[i];
+	for (const StringName &library_name : libraries) {
 		if (!EditorNode::get_singleton()->is_resource_read_only(player->get_animation_library(library_name))) {
 			library->add_item((library_name == StringName()) ? String(TTR("[Global]")) : String(library_name));
 			library->set_item_metadata(valid_library_count, String(library_name));
@@ -1036,8 +1042,7 @@ void AnimationPlayerEditor::_update_name_dialog_library_dropdown() {
 	// one which isn't a read-only library.
 	bool auto_assigning_non_global_library = false;
 	if (current_library_name == StringName() && valid_library_count > 0) {
-		for (int i = 0; i < libraries.size(); i++) {
-			StringName library_name = libraries[i];
+		for (const StringName &library_name : libraries) {
 			if (!EditorNode::get_singleton()->is_resource_read_only(player->get_animation_library(library_name))) {
 				current_library_name = library_name;
 				current_lib_id = 0;
@@ -2039,10 +2044,10 @@ AnimationPlayerEditor::AnimationPlayerEditor(AnimationPlayerEditorPlugin *p_plug
 	vb->add_child(name_hb);
 	name_dialog->register_text_enter(name);
 
-	error_dialog = memnew(ConfirmationDialog);
+	error_dialog = memnew(AcceptDialog);
 	error_dialog->set_ok_button_text(TTR("Close"));
 	error_dialog->set_title(TTR("Error!"));
-	add_child(error_dialog);
+	name_dialog->add_child(error_dialog);
 
 	name_dialog->connect(SNAME("confirmed"), callable_mp(this, &AnimationPlayerEditor::_animation_name_edited));
 
@@ -2056,6 +2061,7 @@ AnimationPlayerEditor::AnimationPlayerEditor(AnimationPlayerEditorPlugin *p_plug
 	blend_editor.dialog->add_child(blend_vb);
 
 	blend_editor.tree = memnew(Tree);
+	blend_editor.tree->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	blend_editor.tree->set_hide_root(true);
 	blend_editor.tree->set_columns(2);
 	blend_editor.tree->set_column_expand_ratio(0, 10);

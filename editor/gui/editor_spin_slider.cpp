@@ -59,17 +59,16 @@ void EditorSpinSlider::gui_input(const Ref<InputEvent> &p_event) {
 	if (mb.is_valid()) {
 		if (mb->get_button_index() == MouseButton::LEFT) {
 			if (mb->is_pressed()) {
-				if (updown_offset != -1 && mb->get_position().x > updown_offset) {
-					//there is an updown, so use it.
+				if (updown_offset != -1 && ((!is_layout_rtl() && mb->get_position().x > updown_offset) || (is_layout_rtl() && mb->get_position().x < updown_offset))) {
+					// Updown pressed.
 					if (mb->get_position().y < get_size().height / 2) {
 						set_value(get_value() + get_step());
 					} else {
 						set_value(get_value() - get_step());
 					}
 					return;
-				} else {
-					_grab_start();
 				}
+				_grab_start();
 			} else {
 				_grab_end();
 			}
@@ -121,7 +120,7 @@ void EditorSpinSlider::gui_input(const Ref<InputEvent> &p_event) {
 				}
 			}
 		} else if (updown_offset != -1) {
-			bool new_hover = (mm->get_position().x > updown_offset);
+			bool new_hover = (!is_layout_rtl() && mm->get_position().x > updown_offset) || (is_layout_rtl() && mm->get_position().x < updown_offset);
 			if (new_hover != hover_updown) {
 				hover_updown = new_hover;
 				queue_redraw();
@@ -238,28 +237,28 @@ void EditorSpinSlider::_grabber_gui_input(const Ref<InputEvent> &p_event) {
 void EditorSpinSlider::_value_input_gui_input(const Ref<InputEvent> &p_event) {
 	Ref<InputEventKey> k = p_event;
 	if (k.is_valid() && k->is_pressed() && !is_read_only()) {
-		double step = get_step();
-		if (step < 1) {
-			double divisor = 1.0 / get_step();
-
-			if (trunc(divisor) == divisor) {
-				step = 1.0;
-			}
-		}
-
-		if (k->is_command_or_control_pressed()) {
-			step *= 100.0;
-		} else if (k->is_shift_pressed()) {
-			step *= 10.0;
-		} else if (k->is_alt_pressed()) {
-			step *= 0.1;
-		}
-
 		Key code = k->get_keycode();
 
 		switch (code) {
 			case Key::UP:
 			case Key::DOWN: {
+				double step = get_step();
+				if (step < 1) {
+					double divisor = 1.0 / step;
+
+					if (trunc(divisor) == divisor) {
+						step = 1.0;
+					}
+				}
+
+				if (k->is_command_or_control_pressed()) {
+					step *= 100.0;
+				} else if (k->is_shift_pressed()) {
+					step *= 10.0;
+				} else if (k->is_alt_pressed()) {
+					step *= 0.1;
+				}
+
 				_evaluate_input_text();
 
 				double last_value = get_value();
@@ -267,12 +266,6 @@ void EditorSpinSlider::_value_input_gui_input(const Ref<InputEvent> &p_event) {
 					step *= -1;
 				}
 				set_value(last_value + step);
-				double new_value = get_value();
-
-				double clamp_value = CLAMP(new_value, get_min(), get_max());
-				if (new_value != clamp_value) {
-					set_value(clamp_value);
-				}
 
 				value_input_dirty = true;
 				set_process_internal(true);
@@ -302,11 +295,9 @@ void EditorSpinSlider::_update_value_input_stylebox() {
 	// higher margin to match the location where the text begins.
 	// The margin values below were determined by empirical testing.
 	if (is_layout_rtl()) {
-		stylebox->set_content_margin(SIDE_LEFT, 0);
 		stylebox->set_content_margin(SIDE_RIGHT, (!get_label().is_empty() ? 23 : 16) * EDSCALE);
 	} else {
 		stylebox->set_content_margin(SIDE_LEFT, (!get_label().is_empty() ? 23 : 16) * EDSCALE);
-		stylebox->set_content_margin(SIDE_RIGHT, 0);
 	}
 
 	value_input->add_theme_style_override("normal", stylebox);
@@ -400,6 +391,9 @@ void EditorSpinSlider::_draw_spin_slider() {
 				c *= Color(1.2, 1.2, 1.2);
 			}
 			draw_texture(updown2, Vector2(updown_offset, updown_vofs), c);
+			if (rtl) {
+				updown_offset += updown2->get_width();
+			}
 			if (grabber->is_visible()) {
 				grabber->hide();
 			}
@@ -711,6 +705,7 @@ void EditorSpinSlider::_ensure_input_popup() {
 	}
 
 	value_input_popup = memnew(Control);
+	value_input_popup->set_anchors_and_offsets_preset(PRESET_FULL_RECT);
 	add_child(value_input_popup);
 
 	value_input = memnew(LineEdit);

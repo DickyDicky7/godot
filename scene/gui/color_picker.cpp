@@ -403,8 +403,9 @@ void ColorPicker::add_mode(ColorMode *p_mode) {
 }
 
 void ColorPicker::create_slider(GridContainer *gc, int idx) {
-	Label *lbl = memnew(Label());
+	Label *lbl = memnew(Label);
 	lbl->set_v_size_flags(SIZE_SHRINK_CENTER);
+	lbl->set_auto_translate_mode(AUTO_TRANSLATE_MODE_DISABLED);
 	gc->add_child(lbl);
 
 	HSlider *slider = memnew(HSlider);
@@ -457,8 +458,8 @@ void ColorPicker::set_editor_settings(Object *p_editor_settings) {
 		}
 	}
 
-	for (int i = 0; i < preset_cache.size(); i++) {
-		presets.push_back(preset_cache[i]);
+	for (const Color &preset : preset_cache) {
+		presets.push_back(preset);
 	}
 
 	if (recent_preset_cache.is_empty()) {
@@ -468,8 +469,8 @@ void ColorPicker::set_editor_settings(Object *p_editor_settings) {
 		}
 	}
 
-	for (int i = 0; i < recent_preset_cache.size(); i++) {
-		recent_presets.push_back(recent_preset_cache[i]);
+	for (const Color &preset : recent_preset_cache) {
+		recent_presets.push_back(preset);
 	}
 
 	_update_presets();
@@ -659,8 +660,8 @@ void ColorPicker::_update_presets() {
 		for (int i = 1; i < preset_container->get_child_count(); i++) {
 			preset_container->get_child(i)->queue_free();
 		}
-		for (int i = 0; i < preset_cache.size(); i++) {
-			_add_preset_button(preset_size, preset_cache[i]);
+		for (const Color &preset : preset_cache) {
+			_add_preset_button(preset_size, preset);
 		}
 		_notification(NOTIFICATION_VISIBILITY_CHANGED);
 	}
@@ -676,13 +677,13 @@ void ColorPicker::_update_recent_presets() {
 		}
 
 		recent_presets.clear();
-		for (int i = 0; i < recent_preset_cache.size(); i++) {
-			recent_presets.push_back(recent_preset_cache[i]);
+		for (const Color &preset : recent_preset_cache) {
+			recent_presets.push_back(preset);
 		}
 
 		int preset_size = _get_preset_size();
-		for (int i = 0; i < recent_presets.size(); i++) {
-			_add_recent_preset_button(preset_size, recent_presets[i]);
+		for (const Color &preset : recent_presets) {
+			_add_recent_preset_button(preset_size, preset);
 		}
 
 		_notification(NOTIFICATION_VISIBILITY_CHANGED);
@@ -712,6 +713,10 @@ void ColorPicker::_text_type_toggled() {
 
 Color ColorPicker::get_pick_color() const {
 	return color;
+}
+
+Color ColorPicker::get_old_color() const {
+	return old_color;
 }
 
 void ColorPicker::set_picker_shape(PickerShapeType p_shape) {
@@ -932,8 +937,9 @@ void ColorPicker::erase_recent_preset(const Color &p_color) {
 PackedColorArray ColorPicker::get_presets() const {
 	PackedColorArray arr;
 	arr.resize(presets.size());
-	for (int i = 0; i < presets.size(); i++) {
-		arr.set(i, presets[i]);
+	int i = 0;
+	for (List<Color>::ConstIterator itr = presets.begin(); itr != presets.end(); ++itr, ++i) {
+		arr.set(i, *itr);
 	}
 	return arr;
 }
@@ -941,8 +947,9 @@ PackedColorArray ColorPicker::get_presets() const {
 PackedColorArray ColorPicker::get_recent_presets() const {
 	PackedColorArray arr;
 	arr.resize(recent_presets.size());
-	for (int i = 0; i < recent_presets.size(); i++) {
-		arr.set(i, recent_presets[i]);
+	int i = 0;
+	for (List<Color>::ConstIterator itr = recent_presets.begin(); itr != recent_presets.end(); ++itr, ++i) {
+		arr.set(i, *itr);
 	}
 	return arr;
 }
@@ -1514,7 +1521,7 @@ void ColorPicker::_pick_finished() {
 		return;
 	}
 
-	if (Input::get_singleton()->is_key_pressed(Key::ESCAPE)) {
+	if (Input::get_singleton()->is_action_just_pressed(SNAME("ui_cancel"))) {
 		set_pick_color(old_color);
 	} else {
 		emit_signal(SNAME("color_changed"), color);
@@ -1627,7 +1634,12 @@ void ColorPicker::_html_focus_exit() {
 	if (c_text->is_menu_visible()) {
 		return;
 	}
-	_html_submitted(c_text->get_text());
+
+	if (is_visible_in_tree()) {
+		_html_submitted(c_text->get_text());
+	} else {
+		_update_text_value();
+	}
 }
 
 void ColorPicker::set_can_add_swatches(bool p_enabled) {
@@ -2026,6 +2038,15 @@ ColorPicker::~ColorPicker() {
 
 /////////////////
 
+void ColorPickerPopupPanel::_input_from_window(const Ref<InputEvent> &p_event) {
+	if (p_event->is_action_pressed(SNAME("ui_accept"), false, true)) {
+		_close_pressed();
+	}
+	PopupPanel::_input_from_window(p_event);
+}
+
+/////////////////
+
 void ColorPickerButton::_about_to_popup() {
 	set_pressed(true);
 	if (picker) {
@@ -2040,6 +2061,10 @@ void ColorPickerButton::_color_changed(const Color &p_color) {
 }
 
 void ColorPickerButton::_modal_closed() {
+	if (Input::get_singleton()->is_action_just_pressed(SNAME("ui_cancel"))) {
+		set_pick_color(picker->get_old_color());
+		emit_signal(SNAME("color_changed"), color);
+	}
 	emit_signal(SNAME("popup_closed"));
 	set_pressed(false);
 }
@@ -2137,7 +2162,7 @@ PopupPanel *ColorPickerButton::get_popup() {
 
 void ColorPickerButton::_update_picker() {
 	if (!picker) {
-		popup = memnew(PopupPanel);
+		popup = memnew(ColorPickerPopupPanel);
 		popup->set_wrap_controls(true);
 		picker = memnew(ColorPicker);
 		picker->set_anchors_and_offsets_preset(PRESET_FULL_RECT);

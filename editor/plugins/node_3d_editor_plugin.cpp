@@ -53,6 +53,7 @@
 #include "editor/plugins/gizmos/cpu_particles_3d_gizmo_plugin.h"
 #include "editor/plugins/gizmos/decal_gizmo_plugin.h"
 #include "editor/plugins/gizmos/fog_volume_gizmo_plugin.h"
+#include "editor/plugins/gizmos/geometry_instance_3d_gizmo_plugin.h"
 #include "editor/plugins/gizmos/gpu_particles_3d_gizmo_plugin.h"
 #include "editor/plugins/gizmos/gpu_particles_collision_3d_gizmo_plugin.h"
 #include "editor/plugins/gizmos/joint_3d_gizmo_plugin.h"
@@ -691,11 +692,11 @@ Vector3 Node3DEditorViewport::_get_camera_position() const {
 	return _get_camera_transform().origin;
 }
 
-Point2 Node3DEditorViewport::_point_to_screen(const Vector3 &p_point) {
+Point2 Node3DEditorViewport::point_to_screen(const Vector3 &p_point) {
 	return camera->unproject_position(p_point) * subviewport_container->get_stretch_shrink();
 }
 
-Vector3 Node3DEditorViewport::_get_ray_pos(const Vector2 &p_pos) const {
+Vector3 Node3DEditorViewport::get_ray_pos(const Vector2 &p_pos) const {
 	return camera->project_ray_origin(p_pos / subviewport_container->get_stretch_shrink());
 }
 
@@ -703,7 +704,7 @@ Vector3 Node3DEditorViewport::_get_camera_normal() const {
 	return -_get_camera_transform().basis.get_column(2);
 }
 
-Vector3 Node3DEditorViewport::_get_ray(const Vector2 &p_pos) const {
+Vector3 Node3DEditorViewport::get_ray(const Vector2 &p_pos) const {
 	return camera->project_ray_normal(p_pos / subviewport_container->get_stretch_shrink());
 }
 
@@ -763,14 +764,14 @@ void Node3DEditorViewport::_select_clicked(bool p_allow_locked) {
 		}
 
 		if (editor_selection->get_selected_node_list().size() == 1) {
-			EditorNode::get_singleton()->edit_node(editor_selection->get_selected_node_list()[0]);
+			EditorNode::get_singleton()->edit_node(editor_selection->get_selected_node_list().front()->get());
 		}
 	}
 }
 
 ObjectID Node3DEditorViewport::_select_ray(const Point2 &p_pos) const {
-	Vector3 ray = _get_ray(p_pos);
-	Vector3 pos = _get_ray_pos(p_pos);
+	Vector3 ray = get_ray(p_pos);
+	Vector3 pos = get_ray_pos(p_pos);
 	Vector2 shrinked_pos = p_pos / subviewport_container->get_stretch_shrink();
 
 	if (viewport->get_debug_draw() == Viewport::DEBUG_DRAW_SDFGI_PROBES) {
@@ -837,8 +838,8 @@ ObjectID Node3DEditorViewport::_select_ray(const Point2 &p_pos) const {
 }
 
 void Node3DEditorViewport::_find_items_at_pos(const Point2 &p_pos, Vector<_RayResult> &r_results, bool p_include_locked_nodes) {
-	Vector3 ray = _get_ray(p_pos);
-	Vector3 pos = _get_ray_pos(p_pos);
+	Vector3 ray = get_ray(p_pos);
+	Vector3 pos = get_ray_pos(p_pos);
 
 	Vector<ObjectID> instances = RenderingServer::get_singleton()->instances_cull_ray(pos, pos + ray * camera->get_far(), get_tree()->get_root()->get_world_3d()->get_scenario());
 	HashSet<Node3D *> found_nodes;
@@ -1083,7 +1084,7 @@ void Node3DEditorViewport::_select_region() {
 	}
 
 	if (editor_selection->get_selected_node_list().size() == 1) {
-		EditorNode::get_singleton()->edit_node(editor_selection->get_selected_node_list()[0]);
+		EditorNode::get_singleton()->edit_node(editor_selection->get_selected_node_list().front()->get());
 	}
 }
 
@@ -1153,8 +1154,8 @@ void Node3DEditorViewport::_update_name() {
 
 void Node3DEditorViewport::_compute_edit(const Point2 &p_point) {
 	_edit.original_local = spatial_editor->are_local_coords_enabled();
-	_edit.click_ray = _get_ray(p_point);
-	_edit.click_ray_pos = _get_ray_pos(p_point);
+	_edit.click_ray = get_ray(p_point);
+	_edit.click_ray_pos = get_ray_pos(p_point);
 	_edit.plane = TRANSFORM_VIEW;
 	spatial_editor->update_transform_gizmo();
 	_edit.center = spatial_editor->get_gizmo_transform().origin;
@@ -1233,8 +1234,8 @@ bool Node3DEditorViewport::_transform_gizmo_select(const Vector2 &p_screenpos, b
 		return false;
 	}
 
-	Vector3 ray_pos = _get_ray_pos(p_screenpos);
-	Vector3 ray = _get_ray(p_screenpos);
+	Vector3 ray_pos = get_ray_pos(p_screenpos);
+	Vector3 ray = get_ray(p_screenpos);
 
 	Transform3D gt = spatial_editor->get_gizmo_transform();
 
@@ -1447,7 +1448,7 @@ Transform3D Node3DEditorViewport::_compute_transform(TransformMode p_mode, const
 	switch (p_mode) {
 		case TRANSFORM_SCALE: {
 			if (_edit.snap || spatial_editor->is_snap_enabled()) {
-				p_motion.snap(Vector3(p_extra, p_extra, p_extra));
+				p_motion.snapf(p_extra);
 			}
 			Transform3D s;
 			if (p_local) {
@@ -1468,7 +1469,7 @@ Transform3D Node3DEditorViewport::_compute_transform(TransformMode p_mode, const
 		}
 		case TRANSFORM_TRANSLATE: {
 			if (_edit.snap || spatial_editor->is_snap_enabled()) {
-				p_motion.snap(Vector3(p_extra, p_extra, p_extra));
+				p_motion.snapf(p_extra);
 			}
 
 			if (p_local) {
@@ -2592,8 +2593,8 @@ void Node3DEditorViewport::scale_freelook_speed(real_t scale) {
 	surface->queue_redraw();
 }
 
-Point2i Node3DEditorViewport::_get_warped_mouse_motion(const Ref<InputEventMouseMotion> &p_ev_mouse_motion) const {
-	Point2i relative;
+Point2 Node3DEditorViewport::_get_warped_mouse_motion(const Ref<InputEventMouseMotion> &p_ev_mouse_motion) const {
+	Point2 relative;
 	if (bool(EDITOR_GET("editors/3d/navigation/warped_mouse_panning"))) {
 		relative = Input::get_singleton()->warp_mouse_motion(p_ev_mouse_motion, surface->get_global_rect());
 	} else {
@@ -3115,7 +3116,7 @@ void Node3DEditorViewport::_draw() {
 	}
 
 	if (_edit.mode == TRANSFORM_ROTATE && _edit.show_rotation_line) {
-		Point2 center = _point_to_screen(_edit.center);
+		Point2 center = point_to_screen(_edit.center);
 
 		Color handle_color;
 		switch (_edit.plane) {
@@ -4087,8 +4088,8 @@ Vector3 Node3DEditorViewport::_get_instance_position(const Point2 &p_pos) const 
 	const float MAX_DISTANCE = 50.0;
 	const float FALLBACK_DISTANCE = 5.0;
 
-	Vector3 world_ray = _get_ray(p_pos);
-	Vector3 world_pos = _get_ray_pos(p_pos);
+	Vector3 world_ray = get_ray(p_pos);
+	Vector3 world_pos = get_ray_pos(p_pos);
 
 	PhysicsDirectSpaceState3D *ss = get_tree()->get_root()->get_world_3d()->get_direct_space_state();
 
@@ -4250,8 +4251,8 @@ bool Node3DEditorViewport::_apply_preview_material(ObjectID p_target, const Poin
 		Ref<Mesh> mesh = mesh_instance->get_mesh();
 		int surface_count = mesh->get_surface_count();
 
-		Vector3 world_ray = _get_ray(p_point);
-		Vector3 world_pos = _get_ray_pos(p_point);
+		Vector3 world_ray = get_ray(p_point);
+		Vector3 world_pos = get_ray_pos(p_point);
 
 		int closest_surface = -1;
 		float closest_dist = 1e20;
@@ -4507,7 +4508,7 @@ bool Node3DEditorViewport::can_drop_data_fw(const Point2 &p_point, const Variant
 							continue;
 						}
 						Node *edited_scene = EditorNode::get_singleton()->get_edited_scene();
-						if (_cyclical_dependency_exists(edited_scene->get_scene_file_path(), instantiated_scene)) {
+						if (edited_scene && !edited_scene->get_scene_file_path().is_empty() && _cyclical_dependency_exists(edited_scene->get_scene_file_path(), instantiated_scene)) {
 							memdelete(instantiated_scene);
 							can_instantiate = false;
 							is_cyclical_dep = true;
@@ -4519,7 +4520,7 @@ bool Node3DEditorViewport::can_drop_data_fw(const Point2 &p_point, const Variant
 						Ref<BaseMaterial3D> base_mat = res;
 						Ref<ShaderMaterial> shader_mat = res;
 
-						if (base_mat.is_null() && !shader_mat.is_null()) {
+						if (base_mat.is_null() && shader_mat.is_null()) {
 							continue;
 						}
 
@@ -4591,7 +4592,7 @@ void Node3DEditorViewport::drop_data_fw(const Point2 &p_point, const Variant &p_
 	List<Node *> selected_nodes = EditorNode::get_singleton()->get_editor_selection()->get_selected_node_list();
 	Node *root_node = EditorNode::get_singleton()->get_edited_scene();
 	if (selected_nodes.size() > 0) {
-		Node *selected_node = selected_nodes[0];
+		Node *selected_node = selected_nodes.front()->get();
 		target_node = selected_node;
 		if (is_alt) {
 			target_node = root_node;
@@ -4698,8 +4699,8 @@ void Node3DEditorViewport::apply_transform(Vector3 p_motion, double p_snap) {
 
 // Update the current transform operation in response to an input.
 void Node3DEditorViewport::update_transform(bool p_shift) {
-	Vector3 ray_pos = _get_ray_pos(_edit.mouse_pos);
-	Vector3 ray = _get_ray(_edit.mouse_pos);
+	Vector3 ray_pos = get_ray_pos(_edit.mouse_pos);
+	Vector3 ray = get_ray(_edit.mouse_pos);
 	double snap = EDITOR_GET("interface/inspector/default_float_step");
 	int snap_step_decimals = Math::range_step_decimals(snap);
 
@@ -4785,7 +4786,7 @@ void Node3DEditorViewport::update_transform(bool p_shift) {
 				snap = spatial_editor->get_scale_snap() / 100;
 			}
 			Vector3 motion_snapped = motion;
-			motion_snapped.snap(Vector3(snap, snap, snap));
+			motion_snapped.snapf(snap);
 			// This might not be necessary anymore after issue #288 is solved (in 4.0?).
 			// TRANSLATORS: Refers to changing the scale of a node in the 3D editor.
 			set_message(TTR("Scaling:") + " (" + String::num(motion_snapped.x, snap_step_decimals) + ", " +
@@ -4857,7 +4858,7 @@ void Node3DEditorViewport::update_transform(bool p_shift) {
 				snap = spatial_editor->get_translate_snap();
 			}
 			Vector3 motion_snapped = motion;
-			motion_snapped.snap(Vector3(snap, snap, snap));
+			motion_snapped.snapf(snap);
 			// TRANSLATORS: Refers to changing the position of a node in the 3D editor.
 			set_message(TTR("Translating:") + " (" + String::num(motion_snapped.x, snap_step_decimals) + ", " +
 					String::num(motion_snapped.y, snap_step_decimals) + ", " + String::num(motion_snapped.z, snap_step_decimals) + ")");
@@ -6068,9 +6069,9 @@ void Node3DEditor::set_state(const Dictionary &p_state) {
 				continue;
 			}
 			int state = EditorNode3DGizmoPlugin::VISIBLE;
-			for (int i = 0; i < keys.size(); i++) {
-				if (gizmo_plugins_by_name.write[j]->get_gizmo_name() == String(keys[i])) {
-					state = gizmos_status[keys[i]];
+			for (const Variant &key : keys) {
+				if (gizmo_plugins_by_name.write[j]->get_gizmo_name() == String(key)) {
+					state = gizmos_status[key];
 					break;
 				}
 			}
@@ -6639,8 +6640,13 @@ void fragment() {
 
 			for (int j = 0; j < 4; j++) {
 				Transform3D t = Transform3D();
-				t = t.scaled(axis * distances[j + 1]);
-				t = t.translated(axis * distances[j]);
+				if (distances[j] > 0.0) {
+					t = t.scaled(axis * distances[j + 1]);
+					t = t.translated(axis * distances[j]);
+				} else {
+					t = t.scaled(axis * distances[j]);
+					t = t.translated(axis * distances[j + 1]);
+				}
 				RenderingServer::get_singleton()->multimesh_instance_set_transform(origin_multimesh, i * 4 + j, t);
 				RenderingServer::get_singleton()->multimesh_instance_set_color(origin_multimesh, i * 4 + j, origin_color);
 			}
@@ -7376,6 +7382,7 @@ void Node3DEditor::_selection_changed() {
 void Node3DEditor::_refresh_menu_icons() {
 	bool all_locked = true;
 	bool all_grouped = true;
+	bool has_node3d_item = false;
 
 	List<Node *> &selection = editor_selection->get_selected_node_list();
 
@@ -7384,26 +7391,34 @@ void Node3DEditor::_refresh_menu_icons() {
 		all_grouped = false;
 	} else {
 		for (Node *E : selection) {
-			if (Object::cast_to<Node3D>(E) && !Object::cast_to<Node3D>(E)->has_meta("_edit_lock_")) {
-				all_locked = false;
-				break;
+			Node3D *node = Object::cast_to<Node3D>(E);
+			if (node) {
+				if (all_locked && !node->has_meta("_edit_lock_")) {
+					all_locked = false;
+				}
+				if (all_grouped && !node->has_meta("_edit_group_")) {
+					all_grouped = false;
+				}
+				has_node3d_item = true;
 			}
-		}
-		for (Node *E : selection) {
-			if (Object::cast_to<Node3D>(E) && !Object::cast_to<Node3D>(E)->has_meta("_edit_group_")) {
-				all_grouped = false;
+			if (!all_locked && !all_grouped) {
 				break;
 			}
 		}
 	}
 
+	all_locked = all_locked && has_node3d_item;
+	all_grouped = all_grouped && has_node3d_item;
+
 	tool_button[TOOL_LOCK_SELECTED]->set_visible(!all_locked);
-	tool_button[TOOL_LOCK_SELECTED]->set_disabled(selection.is_empty());
+	tool_button[TOOL_LOCK_SELECTED]->set_disabled(!has_node3d_item);
 	tool_button[TOOL_UNLOCK_SELECTED]->set_visible(all_locked);
+	tool_button[TOOL_UNLOCK_SELECTED]->set_disabled(!has_node3d_item);
 
 	tool_button[TOOL_GROUP_SELECTED]->set_visible(!all_grouped);
-	tool_button[TOOL_GROUP_SELECTED]->set_disabled(selection.is_empty());
+	tool_button[TOOL_GROUP_SELECTED]->set_disabled(!has_node3d_item);
 	tool_button[TOOL_UNGROUP_SELECTED]->set_visible(all_grouped);
+	tool_button[TOOL_UNGROUP_SELECTED]->set_disabled(!has_node3d_item);
 }
 
 template <typename T>
@@ -7789,6 +7804,10 @@ Vector<int> Node3DEditor::get_subgizmo_selection() {
 	return ret;
 }
 
+void Node3DEditor::clear_subgizmo_selection(Object *p_obj) {
+	_clear_subgizmo_selection(p_obj);
+}
+
 void Node3DEditor::add_control_to_menu_panel(Control *p_control) {
 	ERR_FAIL_NULL(p_control);
 	ERR_FAIL_COND(p_control->get_parent());
@@ -8078,6 +8097,7 @@ void Node3DEditor::_register_all_gizmos() {
 	add_gizmo_plugin(Ref<SoftBody3DGizmoPlugin>(memnew(SoftBody3DGizmoPlugin)));
 	add_gizmo_plugin(Ref<SpriteBase3DGizmoPlugin>(memnew(SpriteBase3DGizmoPlugin)));
 	add_gizmo_plugin(Ref<Label3DGizmoPlugin>(memnew(Label3DGizmoPlugin)));
+	add_gizmo_plugin(Ref<GeometryInstance3DGizmoPlugin>(memnew(GeometryInstance3DGizmoPlugin)));
 	add_gizmo_plugin(Ref<Marker3DGizmoPlugin>(memnew(Marker3DGizmoPlugin)));
 	add_gizmo_plugin(Ref<RayCast3DGizmoPlugin>(memnew(RayCast3DGizmoPlugin)));
 	add_gizmo_plugin(Ref<ShapeCast3DGizmoPlugin>(memnew(ShapeCast3DGizmoPlugin)));
@@ -8977,7 +8997,7 @@ void Node3DEditorPlugin::set_state(const Dictionary &p_state) {
 Vector3 Node3DEditor::snap_point(Vector3 p_target, Vector3 p_start) const {
 	if (is_snap_enabled()) {
 		real_t snap = get_translate_snap();
-		p_target.snap(Vector3(snap, snap, snap));
+		p_target.snapf(snap);
 	}
 	return p_target;
 }
