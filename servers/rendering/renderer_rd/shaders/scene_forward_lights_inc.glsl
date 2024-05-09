@@ -998,3 +998,22 @@ float blur_shadow(float shadow) {
 	return shadow;
 #endif
 }
+
+float sample_directional_shadow(uint idx, vec3 vertex) {
+
+  uint shadow0 = 0;
+  uint shadow1 = 0;
+
+  float shadow = 1.0; // no shadow
+
+  light_process_directional_shadow(idx, vertex, scene_data_block.data.directional_shadow_pixel_size, shadow0, shadow1);
+
+  if (idx < 4) {
+   shadow = float(shadow0 >> (idx * 8u) & 0xFFu) / 255.0;
+  } else {
+   shadow = float(shadow1 >> ((idx - 4u) * 8u) & 0xFFu) / 255.0;
+  }
+
+  return shadow;
+
+}
